@@ -4,7 +4,7 @@ import java.time.LocalDateTime;
 import java.util.Objects;
 
 //public class ConsensusStatistics extends AbstractDomain {
-public class ConsensusStatistics {
+public class CSVStatisticsModel {
 
     private int electionId;
 
@@ -21,8 +21,8 @@ public class ConsensusStatistics {
     private boolean consensusResult;
 
 
-    public ConsensusStatistics(int electionId, String candidateId, int consensusId, LocalDateTime startTime,
-                               LocalDateTime endTime, int votesCount, boolean consensusResult) {
+    public CSVStatisticsModel(int electionId, String candidateId, int consensusId, LocalDateTime startTime,
+                              LocalDateTime endTime, int votesCount, boolean consensusResult) {
         this.electionId = electionId;
         this.candidateId = candidateId;
         this.consensusId = consensusId;
@@ -92,7 +92,7 @@ public class ConsensusStatistics {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        ConsensusStatistics that = (ConsensusStatistics) o;
+        CSVStatisticsModel that = (CSVStatisticsModel) o;
         return getElectionId() == that.getElectionId() &&
                 getConsensusId() == that.getConsensusId();
     }

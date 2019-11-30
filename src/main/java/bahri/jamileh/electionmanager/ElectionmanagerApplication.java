@@ -21,6 +21,7 @@ public class ElectionmanagerApplication {
 
         LOGGER.info("Election Manager Send Genesis To BallotBox And Candidates. . . . ");
 
+
     }
 
 }

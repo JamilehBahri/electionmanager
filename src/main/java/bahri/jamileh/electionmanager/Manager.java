@@ -13,6 +13,9 @@ import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.LinkedTransferQueue;
@@ -41,7 +44,7 @@ public class Manager {
     @Qualifier("candidateChoose")
     private int candidateChoose;
 
-    private Map<String,Integer> ballotBox = new HashMap<>();
+    private Map<String, Integer> ballotBox = new HashMap<>();
 
     @Autowired
     @Qualifier("maxGenerateVotes")
@@ -82,7 +85,7 @@ public class Manager {
 
     List<ConsensusStatistics> consensusStatisticsList = new ArrayList<>();
 
-    private boolean isRunning =true;
+    private boolean isRunning = true;
 
     private final Object lock1 = new Object();
 
@@ -99,7 +102,7 @@ public class Manager {
     }
 
     @PreDestroy
-    public void finishing(){
+    public void finishing() {
         isRunning = false;
         tallyResultNotificationThread.interrupt();
         consensusStatisticsThread.interrupt();
@@ -116,6 +119,7 @@ public class Manager {
         try {
             LOGGER.info("'Election Manager' received Consensus Statistics message='{}'", message);
             transferQueueStatistic.transfer(message);
+
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -126,6 +130,9 @@ public class Manager {
         try {
             LOGGER.info("'Election Manager' received End Tally message='{}'", message);
             transferQueueEndTally.transfer(message);
+            synchronized (lock2){
+                lock2.notify();
+            }
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -143,10 +150,10 @@ public class Manager {
 //            }
             try {
                 String r = transferQueueEndTally.take();
-                LOGGER.info("getTallyResult r :"+ r);
-                synchronized (lock2) {
-                    lock2.notify();
-                }
+//                LOGGER.info("getTallyResult r :"+ r);
+//                synchronized (lock2) {
+//                    lock2.notify();
+//                }
 //                consensusStatisticsList.add(convertJsonToStatistic(transferQueueStatistic.take()));
             } catch (InterruptedException e) {
                 e.printStackTrace();
@@ -155,6 +162,8 @@ public class Manager {
     }
 
     public void getConsensusStatistics() {
+        int receivedCount = 0;
+        Map<Integer, Long> statisticsMap = new HashMap<>();
 
         while (isRunning) {
             synchronized (lock2) {
@@ -165,22 +174,64 @@ public class Manager {
                 }
             }
 
-            try {
-                consensusStatisticsList.add(convertJsonToStatistic(transferQueueStatistic.take()));
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+            while ((maxGenerateVotes / startconsensusvotecount)*candidatesCount != receivedCount) {
+                try {
+                    consensusStatisticsList.add(convertJsonToStatistic(transferQueueStatistic.take()));
+                    receivedCount++;
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
             }
+            if((maxGenerateVotes / startconsensusvotecount) * candidatesCount == receivedCount){
+                receivedCount=0;
+                // compute consensus time duration and add to csv file
+                for (ConsensusStatistics cs : consensusStatisticsList) {
 
-            // compute avg consensus time
-//            float sum = 0;
-//            for ( ConsensusStatistics cs : consensusStatisticsList){
-//                float t = cs.getEndTime().getNano() - cs.getStartTime().getNano();
-//                LOGGER.info("Duration of consensus Id '{}' is : '{}'", cs.getConsensusId() , t);
-//                sum += t;
-//            }
-//            float avg = (sum / consensusStatisticsList.size());
-//            LOGGER.info("Consensus Duration for election Id : '{}' is : '{}' " ,electionId, avg );
+                    if (!statisticsMap.containsKey(cs.getConsensusId())) {
+                        Duration t = Duration.between(cs.getStartTime(),cs.getEndTime());
+                        statisticsMap.put(cs.getConsensusId(), t.toMillis());
+                        LOGGER.info("consensus Id '{}' insert to map, consensus duration is: '{}' ms", cs.getConsensusId(), t.toMillis());
+                    } else { //sum each consensus for each candidate
+                        long c = statisticsMap.get(cs.getConsensusId());
+                        Duration t = Duration.between(cs.getStartTime(),cs.getEndTime());
+                        statisticsMap.put(cs.getConsensusId(), c + t.toMillis()); //is sum
+                        LOGGER.info("consensus Id '{}' update in map, consensus duration is: '{}' ms, updated value is: '{}' ms",
+                                cs.getConsensusId(), t.toMillis(), c + t.toMillis());
 
+                    }
+                } // is avg
+                for (int i = 1; i <= statisticsMap.size(); i++) {
+                    long avg = (statisticsMap.get(i) / statisticsMap.size());
+                    statisticsMap.put(i, avg);
+                    LOGGER.info("Avg Consensus Duration for consensus Id : '{}' is : '{}' ms ", i, avg);
+
+                }
+
+                writeMapToCSVFile(statisticsMap);
+            }
+        }
+
+    }
+
+    public void writeMapToCSVFile(Map<Integer, Long> map) {
+
+        try {
+            FileWriter csvWriter = new FileWriter("new.csv");
+            csvWriter.append("candidateId");
+            csvWriter.append(",");
+            csvWriter.append("avgConsensusTime");
+            csvWriter.append("\n");
+
+            for (int i = 1; i <= map.size(); i++) {
+               csvWriter.append(i + "," + map.get(i));
+               csvWriter.append("\n");
+
+            }
+            csvWriter.flush();
+            csvWriter.close();
+
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
@@ -201,21 +252,21 @@ public class Manager {
 
     }
 
-    public  String generateBallotBoxGenesis(){
-       BallotBoxGenesis  b_genesis = new BallotBoxGenesis(electionId,candidateChoose,setBallotBoxOffset()
-               ,maxGenerateVotes, LocalDateTime.now(),LocalDateTime.now(),setCandidates());
+    public String generateBallotBoxGenesis() {
+        BallotBoxGenesis b_genesis = new BallotBoxGenesis(electionId, candidateChoose, setBallotBoxOffset()
+                , maxGenerateVotes, LocalDateTime.now(), LocalDateTime.now(), setCandidates());
 
-            return convertObjectToJson(b_genesis);
+        return convertObjectToJson(b_genesis);
     }
 
-    public  String generateCandidateGenesis(){
-        CandidateGenesis c_genesis = new CandidateGenesis(electionId,candidateChoose,masterCandidateId,
-                minParticipants,maxParticipants,startconsensusvotecount ,setCandidates() , maxGenerateVotes);
+    public String generateCandidateGenesis() {
+        CandidateGenesis c_genesis = new CandidateGenesis(electionId, candidateChoose, masterCandidateId,
+                minParticipants, maxParticipants, startconsensusvotecount, setCandidates(), maxGenerateVotes);
 
-            return convertObjectToJson(c_genesis);
+        return convertObjectToJson(c_genesis);
     }
 
-    public  String convertObjectToJson(Object obj){
+    public String convertObjectToJson(Object obj) {
         GsonBuilder gsonBuilder = new GsonBuilder();
         Gson gson = gsonBuilder.create();
         String jsonString = gson.toJson(obj);
@@ -234,18 +285,18 @@ public class Manager {
             return null;
     }
 
-    public Map<String,Integer> setBallotBoxOffset(){
+    public Map<String, Integer> setBallotBoxOffset() {
         int ballotBoxId = 1;
-        for (int i = 1; i <= maxParticipants; i += maxGenerateVotes){
+        for (int i = 1; i <= maxParticipants; i += maxGenerateVotes) {
 
-            ballotBox.put(ballotBoxId++ +"", i );
+            ballotBox.put(ballotBoxId++ + "", i);
         }
         return ballotBox;
 
     }
 
-    public Set<Integer> setCandidates(){
-        for (int i = 1; i <= candidatesCount; i++){
+    public Set<Integer> setCandidates() {
+        for (int i = 1; i <= candidatesCount; i++) {
             int candidateId = 1;
             candidates.add(i);
         }
