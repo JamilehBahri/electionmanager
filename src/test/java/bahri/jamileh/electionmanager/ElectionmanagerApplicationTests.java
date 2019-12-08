@@ -85,4 +85,24 @@ public class ElectionmanagerApplicationTests {
     public void writeMapToCSVFile(Map<Integer,Integer> map){
 
     }
+
+    @Test
+    public void setBallotBoxOffset() {
+        int ballotBoxId = 1;
+        Map<String, Integer> ballotBox = new HashMap<>();
+        int offset = 1000 / 20;
+        for (int i = 1; i <= 20; i++) {
+
+            if (i == 1)
+                ballotBox.put(ballotBoxId++ + "", 1);
+            else {
+                ballotBox.put(ballotBoxId++ + "", offset + ballotBox.get((i-1)+""));
+//                offset += ballotBox.get(i+"") ;
+            }
+        }
+        System.out.println("");
+
+
+    }
+
 }

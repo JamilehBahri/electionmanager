@@ -43,12 +43,15 @@ public class GenesisConfiguration {
     @Value("${election.maxParticipants}")
     private int maxParticipants;
 
-  ///////candidate genesis
+    /////candidate genesis
     @Value("${election.masterCandidateId}")
     private int masterCandidateId;
 
     @Value("${election.candidate.startconsensus.votecount}")
     private int startconsensusvotecount;
+
+    @Value("${election.maxBallotBox}")
+    private int maxBallotBoxCount;
 
 
     private LocalDateTime issuedTime;
@@ -108,6 +111,11 @@ public class GenesisConfiguration {
     @Bean(name = "startconsensusvotecount")
     public int getStartConsensusVoteCount() {
         return startconsensusvotecount;
+    }
+
+    @Bean(name = "maxBallotBoxCount")
+    public int getMaxBallotBoxCount() {
+        return maxBallotBoxCount;
     }
 
 

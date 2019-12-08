@@ -3,7 +3,6 @@ package bahri.jamileh.electionmanager;
 import java.time.LocalDateTime;
 import java.util.Objects;
 
-//public class ConsensusStatistics extends AbstractDomain {
 public class ConsensusStatistics {
 
     private int electionId;
